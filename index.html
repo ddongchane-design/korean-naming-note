@@ -2,12 +2,12 @@
 <meta name="description" content="사주팔자와 인명용 한자 9,700여 자로 아기 이름을 검토하는 도구">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700;900&family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 
 <div class="wrap">
   <header class="masthead">
-    <div class="seal han">命</div>
+    <div class="seal han">名</div>
     <div>
       <h1>사주 작명 노트</h1>
       <p>태어난 시각으로 사주팔자를 세우고, 대법원 인명용 한자 9,729자로 이름을 검토합니다. 발음오행·발음음양·사격수리·수리오행·수리음양·사주오행을 한 화면에서 봅니다.</p>
@@ -184,8 +184,9 @@
             </div>
           </div>
           <div class="saju-line han" id="outSaju">—<small id="outSajuSub"></small></div>
-          <div class="pillars" id="outPillars"></div>
-          <div class="bars" id="outBars"></div>
+          <table class="pillars" id="outPillars"><tbody></tbody></table>
+          <div class="element-bar" id="outBars"></div>
+          <div class="element-legend" id="outLegend"></div>
         </div>
       </section>
 

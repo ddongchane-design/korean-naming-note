@@ -777,7 +777,7 @@
     $("outHan").textContent = res.hasHanja
       ? state.surHanja.char + state.chars.map(function (c) { return c.char; }).join("")
       : (res.hasName ? "한글 이름" : "\u2014");
-    $("outKor").textContent = res.hasName ? res.korName : "이름을 입력하세요";
+    $("outKor").textContent = res.hasName ? res.korName.split("").join(" ") : "이름을 입력하세요";
     $("outScore").textContent = res.score === null ? "\u2014" : res.score;
     $("outWishScore").textContent = res.wishScore === null ? "—" : res.wishScore;
 
@@ -786,42 +786,73 @@
       + " · 일간 " + p.day.stem + p.day.stemEl + p.day.yin + " · " + s.term + " 이후 " + p.month.branch + "월생 · " + s.hourNote
       + (s.termExact ? " · " + s.term + " " + s.termAt + " 이후" : " · 절기 근삿값 기준");
 
-    var pw = $("outPillars"); pw.innerHTML = "";
-    [["시주", p.hour, "hour"], ["일주", p.day, "day"], ["월주", p.month, "month"], ["년주", p.year, "year"]].forEach(function (pair) {
-      var box = el("div", "pillar");
-      box.appendChild(el("div", "cap", pair[0]));
-      box.appendChild(el("div", "glyph el-" + pair[1].stemEl, pair[1].stemHan + "<small>" + pair[1].stem + " · " + pair[1].stemEl + "</small>"));
-      box.appendChild(el("div", "glyph el-" + pair[1].branchEl, pair[1].branchHan + "<small>" + pair[1].branch + " · " + pair[1].branchEl + "</small>"));
-      var hid = (s.hidden[pair[2]] || []);
-      box.appendChild(el("div", "hidden-stems", hid.map(function (h, idx) {
-        var role = hid.length === 2 ? (idx === 0 ? "여기" : "정기") : ["여기", "중기", "정기"][idx];
-        return '<span class="el-' + STEM_EL_BY_NAME[h] + '" title="' + role + '">' + h + "</span>";
-      }).join("")));
-      var root = (s.rooted[pair[2]] || []);
-      box.appendChild(el("div", "root-note", root.length
-        ? "뿌리 " + root.join("")
-        : '<span class="no-root">뿌리 없음</span>'));
-      pw.appendChild(box);
+    // 사주는 만세력처럼 가는 선의 표로 보여줍니다.
+    var order = [["시주", p.hour, "hour"], ["일주", p.day, "day"], ["월주", p.month, "month"], ["년주", p.year, "year"]];
+    var tb = $("outPillars").querySelector("tbody");
+    tb.innerHTML = "";
+    var head = document.createElement("tr");
+    order.forEach(function (pair) {
+      var th = document.createElement("th");
+      th.textContent = pair[0];
+      head.appendChild(th);
     });
+    tb.appendChild(head);
 
-    var bw = $("outBars"); bw.innerHTML = "";
-    ELEMENTS.forEach(function (e) {
-      var c = s.counts[e], row = el("div", "bar-row");
-      row.appendChild(el("div", "nm el-" + e, e));
-      var track = el("div", "track"), fill = el("div", "fill fill-" + e);
-      fill.style.width = (c / 8 * 100) + "%";
-      track.appendChild(fill); row.appendChild(track);
-      var seedOnly = c === 0 && Object.keys(s.hidden).some(function (k) {
-        return s.hidden[k].some(function (h) { return STEM_EL_BY_NAME[h] === e; });
+    ["stem", "branch"].forEach(function (part) {
+      var tr = document.createElement("tr");
+      order.forEach(function (pair) {
+        var pl = pair[1];
+        var td = document.createElement("td");
+        td.className = "gan el-" + (part === "stem" ? pl.stemEl : pl.branchEl);
+        td.innerHTML = (part === "stem" ? pl.stemHan : pl.branchHan)
+          + "<small>" + (part === "stem" ? pl.stem + " · " + pl.stemEl : pl.branch + " · " + pl.branchEl) + "</small>";
+        tr.appendChild(td);
       });
-      row.appendChild(el("div", "tag", c + "개 · "
-        + (c >= 3 ? "과다" : c === 0 ? (seedOnly ? "없음 (지장간에만)" : "없음") : c === 1 ? "부족" : "보통")
-        + (e === s.seasonEl ? " · 계절 기운 (힘 30~50%)" : "")));
-      bw.appendChild(row);
+      tb.appendChild(tr);
     });
 
-    renderReading(res);
-    renderWish(res);
+    var hidTr = document.createElement("tr");
+    hidTr.className = "hidden-row";
+    order.forEach(function (pair) {
+      var td = document.createElement("td");
+      td.innerHTML = (s.hidden[pair[2]] || []).map(function (hh) {
+        return '<span class="el-' + STEM_EL_BY_NAME[hh] + '">' + hh + "</span>";
+      }).join(" ") || "—";
+      hidTr.appendChild(td);
+    });
+    tb.appendChild(hidTr);
+
+    var rootTr = document.createElement("tr");
+    rootTr.className = "root-row";
+    order.forEach(function (pair) {
+      var root = s.rooted[pair[2]] || [];
+      var td = document.createElement("td");
+      td.innerHTML = root.length ? "뿌리 " + root.join("") : '<span class="no-root">뿌리 없음</span>';
+      rootTr.appendChild(td);
+    });
+    tb.appendChild(rootTr);
+
+    // 오행은 막대 하나에 비율로 합칩니다.
+    var bw = $("outBars"); bw.innerHTML = "";
+    var lw = $("outLegend"); lw.innerHTML = "";
+    ELEMENTS.forEach(function (e) {
+      var c = s.counts[e];
+      var cell = el("div", c ? "bg-" + e : "none");
+      cell.style.flexGrow = String(c || 0.55);
+      cell.style.flexBasis = "0";
+      cell.textContent = c ? (c >= 2 ? e + " " + c : e) : e + " 0";
+      cell.title = e + " " + c + "개";
+      bw.appendChild(cell);
+
+      var grade = c >= 3 ? "과다" : c === 0 ? "없음" : c === 1 ? "부족" : "보통";
+      var seedOnly = c === 0 && Object.keys(s.hidden).some(function (k) {
+        return s.hidden[k].some(function (hh) { return STEM_EL_BY_NAME[hh] === e; });
+      });
+      var item = el("span", null, '<b class="el-' + e + '">' + e + "</b> " + c + "개 · " + (seedOnly ? "없음 (지장간에만)" : grade)
+        + (e === s.seasonEl ? ' <span class="season">계절 기운</span>' : ""));
+      lw.appendChild(item);
+    });
+
     renderAdvice(s, res.need);
     renderChecks(res);
     renderSuri(res);
