@@ -1578,17 +1578,117 @@
     this.textContent = next === "dark" ? "주간" : "야간";
     try { localStorage.setItem("naming-theme", next); } catch (err) { /* 저장 불가 환경 */ }
   });
+  // 한 장짜리 작명 기록을 채우고 인쇄 화면을 엽니다.
+  function fillPrintSheet() {
+    var res = lastResult || evaluate();
+    var p = res.saju.pillars, chars = state.chars.filter(Boolean);
+    var now = new Date();
+    $("sheetDate").textContent = now.getFullYear() + "년 " + (now.getMonth() + 1) + "월 " + now.getDate() + "일 작성";
+    $("sheetHan").textContent = res.hasHanja
+      ? state.surHanja.char + chars.map(function (c) { return c.char; }).join("")
+      : (res.hasName ? res.korName : "—");
+    $("sheetKor").textContent = res.hasName ? res.korName.split("").join(" ") : "이름을 입력해 주세요";
+
+    var r = res.hasHanja ? readingSentences(res) : null;
+    $("sheetTitle").textContent = r && r.blessing ? r.blessing.title : "";
+    $("sheetBody").textContent = r && r.blessing ? r.blessing.body : "";
+
+    var cw = $("sheetChars"); cw.innerHTML = "";
+    if (res.hasHanja) {
+      [state.surHanja].concat(chars).forEach(function (c, i) {
+        var row = el("div", "sheet-char");
+        row.innerHTML = '<span class="ch">' + c.char + "</span>"
+          + "<span><b>" + (i === 0 ? "성 " : "") + c.kor + "</b> " + (c.mean || "뜻 정보 없음") + "</span>"
+          + '<span class="meta">' + c.strokes + "획 · 부수 " + (c.radical || "?") + " · 자원오행 " + c.el + "</span>";
+        cw.appendChild(row);
+      });
+    }
+
+    // 사주: 천간 · 지지 · 지장간
+    var tb = $("sheetSaju").querySelector("tbody"); tb.innerHTML = "";
+    var order = [["시주", p.hour, "hour"], ["일주", p.day, "day"], ["월주", p.month, "month"], ["년주", p.year, "year"]];
+    var head = document.createElement("tr");
+    order.forEach(function (pair) { head.innerHTML += "<th>" + pair[0] + "</th>"; });
+    tb.appendChild(head);
+    ["stem", "branch"].forEach(function (part) {
+      var tr = document.createElement("tr");
+      order.forEach(function (pair) {
+        var pl = pair[1];
+        tr.innerHTML += '<td class="gan">' + (part === "stem" ? pl.stemHan : pl.branchHan)
+          + "<small>" + (part === "stem" ? pl.stem + " " + pl.stemEl : pl.branch + " " + pl.branchEl) + "</small></td>";
+      });
+      tb.appendChild(tr);
+    });
+    var hid = document.createElement("tr");
+    hid.className = "hid";
+    order.forEach(function (pair) { hid.innerHTML += "<td>" + ((res.saju.hidden[pair[2]] || []).join(" ") || "—") + "</td>"; });
+    tb.appendChild(hid);
+
+    var counts = ELEMENTS.map(function (e) { return e + " " + res.saju.counts[e]; }).join(" · ");
+    $("sheetSajuNote").textContent = p.year.kor + "년 " + p.month.kor + "월 " + p.day.kor + "일 " + p.hour.kor + "시 · 일간 "
+      + p.day.stem + p.day.stemEl + " · " + counts + " · 계절 " + res.saju.seasonEl
+      + (res.need.length ? " · 보완 " + res.need.join(", ") : "");
+
+    // 검사 요약
+    var ct = $("sheetChecks").querySelector("tbody"); ct.innerHTML = "";
+    function addRow(label, value, ok) {
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<th>" + label + "</th><td>" + value + "</td>"
+        + '<td class="v ' + (ok ? "ok" : "care") + '">' + (ok ? "양호" : "참고") + "</td>";
+      ct.appendChild(tr);
+    }
+    addRow("발음오행", res.sound.parts.map(function (x) { return x.ch + " " + x.el; }).join(" · "), res.sound.ok);
+    addRow("발음음양", res.vowel.parts.map(function (x) { return x.ch + " " + x.yin; }).join(" · "), res.vowel.ok);
+    if (res.hasHanja) {
+      var labels = ["원", "형", "이", "정"], keys = ["won", "hyeong", "i", "jeong"];
+      addRow("사격수리", keys.map(function (k, i) { return labels[i] + " " + res.suri[k]; }).join(" · "), res.suriOk);
+      addRow("수리오행", res.suriEl.els.join(" → "), res.suriEl.ok);
+      addRow("수리음양", res.strokeYin.map(function (x) { return x.char + " " + x.yin; }).join(" · "), res.strokeYinOk);
+      addRow("자원오행", res.resource.els.join(" · ") + (res.need.length ? " (필요 " + res.need.join(", ") + ")" : ""), res.resource.ok);
+      SURI_STAGE_ROWS(res, ct);
+    }
+    addRow("가족 글자", res.family.ok
+      ? (res.family.shared.length ? res.family.shared[0].ch + " 돌림자" : "겹침 없음")
+      : res.family.clash.map(function (c) { return c.ch + " " + c.who; }).join(", "), res.family.ok);
+
+    $("sheetBirth").textContent = state.date + " " + state.time + " 출생"
+      + (state.timeBase === "kst" ? " · 한국 표준시" : " · " + state.region + " 경도 보정 " + currentShift() + "분")
+      + (res.saju.termExact ? " · " + res.saju.term + " " + res.saju.termAt + " 이후" : "");
+  }
+
+  // 사격 네 격의 이름을 한 줄로 덧붙입니다.
+  function SURI_STAGE_ROWS(res, ct) {
+    var names = STAGES.map(function (stg) {
+      var info = SURI_TEXT[wrap81(res.suri[stg.key])];
+      return stg.label.split(" ")[0] + " " + (info ? info[0].split(" ")[0] : "-");
+    }).join(" · ");
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<th>사격 풀이</th><td colspan="2">' + names + "</td>";
+    ct.appendChild(tr);
+  }
+
+  var sheetOpen = false;
+  function closeSheet() {
+    sheetOpen = false;
+    document.body.classList.remove("sheet-view");
+    $("sheetBar").hidden = true;
+  }
+
   $("pdfBtn").addEventListener("click", function () {
-    var res = evaluate(), p = res.saju.pillars;
-    var name = res.hasHanja
-      ? res.korName + " " + state.surHanja.char + state.chars.map(function (c) { return c.char; }).join("")
-      : (res.hasName ? res.korName : "이름 미정");
-    $("printName").textContent = name;
-    $("printMeta").textContent = state.date + " " + state.time + " · "
-      + p.year.kor + "년 " + p.month.kor + "월 " + p.day.kor + "일 " + p.hour.kor + "시";
-    $("printFoot") && ($("printFoot").hidden = false);
-    document.querySelector(".print-foot").hidden = false;
-    window.print();
+    try { fillPrintSheet(); } catch (err) { toast("기록을 만들지 못했습니다"); return; }
+    // 앱 안의 브라우저처럼 인쇄창이 열리지 않는 곳도 있어, 기록지를 화면에 먼저 띄웁니다.
+    sheetOpen = true;
+    document.body.classList.add("sheet-view");
+    $("sheetBar").hidden = false;
+    window.scrollTo(0, 0);
+  });
+
+  $("sheetPrint").addEventListener("click", function () {
+    try { window.print(); } catch (err) { toast("브라우저 메뉴에서 인쇄를 선택하세요"); }
+  });
+  $("sheetClose").addEventListener("click", closeSheet);
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && sheetOpen) closeSheet();
   });
 
   $("copyBtn").addEventListener("click", function () {

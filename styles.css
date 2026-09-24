@@ -382,41 +382,115 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   .rank-lists { gap: 20px; }
 }
 
-/* 인쇄와 PDF 저장 */
-.print-foot { display: none; }
+/* 인쇄와 PDF 저장 — 한 장짜리 작명 기록 */
+#printSheet { display: none; }
+#sheetBar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--bg); font-size: 12.5px;
+}
+#sheetBar b { color: #F0B8A8; }
+#sheetBar span { flex-grow: 1; min-width: 180px; line-height: 1.6; }
+#sheetBar .btn { background: transparent; color: var(--bg); border-color: var(--bg); }
+
+body.sheet-view > .wrap { display: none; }
+body.sheet-view #printSheet {
+  display: block; background: #FFFFFF; color: #111111;
+  font-family: var(--body); font-size: 14px; line-height: 1.7;
+  max-width: 780px; margin: 0 auto; padding: 28px 24px 120px;
+}
+body.sheet-view #printSheet h2, body.sheet-view #printSheet h3 { font-family: var(--display); margin: 0; }
+body.sheet-view .sheet-top { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #111111; padding-bottom: 8px; }
+body.sheet-view .sheet-label { font-family: var(--display); font-size: 15px; font-weight: 700; letter-spacing: 0.3em; }
+body.sheet-view .sheet-date { font-size: 12px; color: #555555; }
+body.sheet-view .sheet-name { display: flex; align-items: center; gap: 16px; padding: 24px 0 20px; }
+body.sheet-view .sheet-han { font-family: var(--display); font-size: clamp(38px, 11vw, 56px); font-weight: 900; letter-spacing: 0.1em; line-height: 1.1; }
+body.sheet-view .sheet-kor { font-size: 15px; letter-spacing: 0.3em; color: #444444; flex-grow: 1; }
+body.sheet-view .sheet-seal {
+  width: 46px; height: 46px; flex: none; border: 2px solid #8A2F26; color: #8A2F26;
+  font-family: var(--display); font-size: 24px; font-weight: 900; display: grid; place-items: center;
+}
+body.sheet-view .sheet-bless { border-left: 3px solid #8A2F26; padding: 2px 0 2px 16px; margin-bottom: 24px; }
+body.sheet-view .sheet-bless h2 { font-size: clamp(20px, 5vw, 26px); font-weight: 700; line-height: 1.5; }
+body.sheet-view .sheet-bless p { margin: 8px 0 0; font-size: 14px; color: #333333; }
+body.sheet-view .sheet-chars { display: grid; gap: 9px; margin-bottom: 26px; }
+body.sheet-view .sheet-char { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: baseline; border-bottom: 1px solid #DDDDDD; padding-bottom: 8px; font-size: 13px; }
+body.sheet-view .sheet-char .ch { font-family: var(--display); font-size: 24px; font-weight: 700; text-align: center; }
+body.sheet-view .sheet-char .meta { grid-column: 2; font-size: 11.5px; color: #666666; }
+body.sheet-view .sheet-cols { display: grid; gap: 26px; }
+@media (min-width: 620px) { body.sheet-view .sheet-cols { grid-template-columns: 0.95fr 1.05fr; } }
+body.sheet-view .sheet-cols h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+body.sheet-view .sheet-saju { width: 100%; border-collapse: collapse; table-layout: fixed; }
+body.sheet-view .sheet-saju th { border: 1px solid #BBBBBB; font-size: 11px; font-weight: 400; color: #555555; padding: 5px 0; text-align: center; background: #F6F6F4; }
+body.sheet-view .sheet-saju td { border: 1px solid #BBBBBB; text-align: center; padding: 7px 0; }
+body.sheet-view .sheet-saju .gan { font-family: var(--display); font-size: 24px; font-weight: 700; line-height: 1.2; }
+body.sheet-view .sheet-saju .gan small { display: block; font-family: var(--body); font-size: 10.5px; font-weight: 400; color: #555555; }
+body.sheet-view .sheet-saju .hid td { font-size: 10.5px; color: #666666; background: #F6F6F4; padding: 4px 0; }
+body.sheet-view .sheet-note { font-size: 12px; color: #555555; margin-top: 9px; line-height: 1.7; }
+body.sheet-view .sheet-checks { width: 100%; border-collapse: collapse; }
+body.sheet-view .sheet-checks th { text-align: left; font-size: 12.5px; font-weight: 700; color: #111111; border-bottom: 1px solid #DDDDDD; padding: 7px 8px 7px 0; white-space: nowrap; background: transparent; }
+body.sheet-view .sheet-checks td { font-size: 12.5px; color: #333333; border-bottom: 1px solid #DDDDDD; padding: 7px 0; white-space: normal; }
+body.sheet-view .sheet-checks td.v { text-align: right; font-size: 11.5px; white-space: nowrap; width: 44px; }
+body.sheet-view .sheet-checks td.v.ok { color: #1F5C42; }
+body.sheet-view .sheet-checks td.v.care { color: #8A6A14; }
+body.sheet-view .sheet-foot { margin-top: 28px; padding-top: 12px; border-top: 1px solid #111111; font-size: 11.5px; color: #666666; line-height: 1.7; }
+body.sheet-view .sheet-foot span { display: block; margin-bottom: 3px; }
+
 @media print {
-  :root, :root[data-theme="dark"], :root[data-theme="light"] {
-    --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #FFFFFF;
-    --ink: #000000; --ink-2: #1A1A1A; --muted: #4A4A4A;
-    --line: #B9B9B9; --line-strong: #8A8A8A;
-    --accent: #1B3559; --accent-soft: #FFFFFF; --accent-line: #8A8A8A;
-    --seal: #8A2F26;
-    --mok: #1F5C42; --hwa: #8E2E22; --to: #7E5A16; --geum: #4A5058; --su: #1B3559;
-    --good: #1F5C42; --warn: #6B5210; --bad: #8E2E22;
+  @page { size: A4; margin: 15mm 14mm; }
+  html, body { background: #FFFFFF !important; overflow: visible; }
+  body > *:not(#printSheet) { display: none !important; }
+  #sheetBar { display: none !important; }
+  #printSheet {
+    display: block; color: #111111; background: #FFFFFF;
+    font-family: "Noto Sans KR", sans-serif; font-size: 10pt; line-height: 1.65;
   }
-  @page { margin: 14mm 12mm; }
-  body { background: #FFFFFF; font-size: 10.5pt; line-height: 1.6; }
-  .wrap { max-width: none; padding: 0; }
-  .masthead { padding-block: 0 8px; border-bottom: 1px solid #000; }
-  .masthead .right, .rail, .ask-wrap, #searchOpts, .filters, .explorer-grid,
-  .toast, .tip, #outCands, #candEmpty, #expSelected { display: none !important; }
-  .cols { display: block; margin-top: 12px; }
-  .results { display: block; border: 0; }
-  .card { border-bottom: 1px solid #B9B9B9; break-inside: avoid; page-break-inside: avoid; }
-  .card-head { padding: 12px 0 0; }
-  .card-body { padding: 8px 0 14px; }
-  .headline .full-han { color: #000; }
-  .scores .score:first-child { background: #FFFFFF; border-color: #8A2F26; }
-  .scores .score:first-child b, .scores .score:first-child span { color: #8A2F26; }
-  .element-bar > div { color: #FFFFFF; }
-  .suri-item, .check, .advice-item, .wish-row, .rank-row { break-inside: avoid; page-break-inside: avoid; }
-  .checks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  a { color: #000; text-decoration: none; }
-  .footnote { border: 1px solid #B9B9B9; background: #FFFFFF; font-size: 9pt; }
-  .print-foot {
-    display: block !important; margin-top: 10px; padding-top: 8px; border-top: 1px solid #000;
-    font-size: 9pt; color: #4A4A4A;
+  #printSheet h2, #printSheet h3 { font-family: "Noto Serif KR", serif; margin: 0; }
+
+  .sheet-top { display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1.5px solid #111111; padding-bottom: 6px; }
+  .sheet-label { font-family: "Noto Serif KR", serif; font-size: 11pt; font-weight: 700; letter-spacing: 0.3em; }
+  .sheet-date { font-size: 8.5pt; color: #555555; }
+
+  .sheet-name { display: flex; align-items: center; gap: 16px; padding: 22px 0 18px; }
+  .sheet-han { font-family: "Noto Serif KR", serif; font-size: 40pt; font-weight: 900; letter-spacing: 0.1em; line-height: 1.1; }
+  .sheet-kor { font-size: 12pt; letter-spacing: 0.35em; color: #444444; flex-grow: 1; }
+  .sheet-seal {
+    width: 40px; height: 40px; border: 1.5px solid #8A2F26; color: #8A2F26;
+    font-family: "Noto Serif KR", serif; font-size: 20pt; font-weight: 900;
+    display: flex; align-items: center; justify-content: center; flex: none;
   }
-  .print-foot b { display: block; font-family: var(--display); font-size: 13pt; color: #000; margin-bottom: 2px; }
-  .print-foot span { display: block; }
+
+  .sheet-bless { border-left: 2.5px solid #8A2F26; padding: 2px 0 2px 14px; margin-bottom: 20px; }
+  .sheet-bless h2 { font-size: 17pt; font-weight: 700; line-height: 1.45; }
+  .sheet-bless p { margin: 6px 0 0; font-size: 10.5pt; color: #333333; }
+
+  .sheet-chars { display: grid; gap: 7px; margin-bottom: 22px; }
+  .sheet-char { display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: baseline;
+    border-bottom: 1px solid #DDDDDD; padding-bottom: 6px; }
+  .sheet-char .ch { font-family: "Noto Serif KR", serif; font-size: 17pt; font-weight: 700; text-align: center; }
+  .sheet-char .meta { font-size: 8.5pt; color: #666666; white-space: nowrap; }
+
+  .sheet-cols { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 24px; }
+  .sheet-cols h3 { font-size: 11pt; font-weight: 700; margin-bottom: 8px; }
+
+  .sheet-saju { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .sheet-saju th { border: 1px solid #BBBBBB; font-size: 8pt; font-weight: 400; color: #555555; padding: 3px 0; text-align: center; background: #F6F6F4; }
+  .sheet-saju td { border: 1px solid #BBBBBB; text-align: center; padding: 5px 0; }
+  .sheet-saju .gan { font-family: "Noto Serif KR", serif; font-size: 16pt; font-weight: 700; line-height: 1.2; }
+  .sheet-saju .gan small { display: block; font-family: "Noto Sans KR", sans-serif; font-size: 7.5pt; font-weight: 400; color: #555555; }
+  .sheet-saju .hid td { font-size: 7.5pt; color: #666666; background: #F6F6F4; padding: 3px 0; }
+  .sheet-note { font-size: 8.5pt; color: #555555; margin-top: 7px; line-height: 1.6; }
+
+  .sheet-checks { width: 100%; border-collapse: collapse; }
+  .sheet-checks th { text-align: left; font-size: 9pt; font-weight: 700; color: #111111;
+    border-bottom: 1px solid #DDDDDD; padding: 5px 8px 5px 0; white-space: nowrap; background: transparent; }
+  .sheet-checks td { font-size: 9pt; color: #333333; border-bottom: 1px solid #DDDDDD; padding: 5px 0; }
+  .sheet-checks td.v { text-align: right; font-size: 8.5pt; white-space: nowrap; width: 38px; }
+  .sheet-checks td.v.ok { color: #1F5C42; }
+  .sheet-checks td.v.care { color: #8A6A14; }
+
+  .sheet-foot { margin-top: 26px; padding-top: 10px; border-top: 1px solid #111111; font-size: 8pt; color: #666666; }
+  .sheet-foot span { display: block; margin-bottom: 2px; }
 }

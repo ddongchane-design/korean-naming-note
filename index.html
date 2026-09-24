@@ -342,12 +342,6 @@
         </div>
       </section>
 
-      <div class="print-foot" hidden>
-        <b id="printName">—</b>
-        <span id="printMeta"></span>
-        <span>사주 작명 노트 · korean-naming-note.ddongchane.workers.dev</span>
-      </div>
-
       <div class="footnote">
         <b>데이터와 한계</b>
         <ul>
@@ -364,6 +358,51 @@
     </main>
   </div>
 </div>
+
+
+<div id="sheetBar" hidden>
+  <span>작명 기록 한 장입니다. 인쇄에서 <b>PDF로 저장</b>을 고르세요.</span>
+  <button class="btn" type="button" id="sheetPrint">인쇄 · PDF 저장</button>
+  <button class="btn" type="button" id="sheetClose">닫기</button>
+</div>
+
+<section id="printSheet" aria-hidden="true">
+  <div class="sheet-top">
+    <span class="sheet-label">작명 기록</span>
+    <span class="sheet-date" id="sheetDate"></span>
+  </div>
+
+  <div class="sheet-name">
+    <div class="sheet-han" id="sheetHan">—</div>
+    <div class="sheet-kor" id="sheetKor"></div>
+    <div class="sheet-seal">名</div>
+  </div>
+
+  <div class="sheet-bless">
+    <h2 id="sheetTitle"></h2>
+    <p id="sheetBody"></p>
+  </div>
+
+  <div class="sheet-chars" id="sheetChars"></div>
+
+  <div class="sheet-cols">
+    <div>
+      <h3>사주팔자</h3>
+      <table class="sheet-saju" id="sheetSaju"><tbody></tbody></table>
+      <p class="sheet-note" id="sheetSajuNote"></p>
+    </div>
+    <div>
+      <h3>이름 검사</h3>
+      <table class="sheet-checks" id="sheetChecks"><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="sheet-foot">
+    <span id="sheetBirth"></span>
+    <span>출생신고 전에 대법원 인명용 한자 조회로 사용 가능 여부를 확인하세요. 이 기록은 참고용이며 이름이 운명을 결정하지 않습니다.</span>
+    <span>사주 작명 노트 · korean-naming-note.ddongchane.workers.dev</span>
+  </div>
+</section>
 
 <script src="data/solar-terms.js"></script>
 <script src="data/meaning-phrases.js"></script>
