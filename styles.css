@@ -381,3 +381,42 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   .pillars .gan { font-size: 22px; }
   .rank-lists { gap: 20px; }
 }
+
+/* 인쇄와 PDF 저장 */
+.print-foot { display: none; }
+@media print {
+  :root, :root[data-theme="dark"], :root[data-theme="light"] {
+    --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #FFFFFF;
+    --ink: #000000; --ink-2: #1A1A1A; --muted: #4A4A4A;
+    --line: #B9B9B9; --line-strong: #8A8A8A;
+    --accent: #1B3559; --accent-soft: #FFFFFF; --accent-line: #8A8A8A;
+    --seal: #8A2F26;
+    --mok: #1F5C42; --hwa: #8E2E22; --to: #7E5A16; --geum: #4A5058; --su: #1B3559;
+    --good: #1F5C42; --warn: #6B5210; --bad: #8E2E22;
+  }
+  @page { margin: 14mm 12mm; }
+  body { background: #FFFFFF; font-size: 10.5pt; line-height: 1.6; }
+  .wrap { max-width: none; padding: 0; }
+  .masthead { padding-block: 0 8px; border-bottom: 1px solid #000; }
+  .masthead .right, .rail, .ask-wrap, #searchOpts, .filters, .explorer-grid,
+  .toast, .tip, #outCands, #candEmpty, #expSelected { display: none !important; }
+  .cols { display: block; margin-top: 12px; }
+  .results { display: block; border: 0; }
+  .card { border-bottom: 1px solid #B9B9B9; break-inside: avoid; page-break-inside: avoid; }
+  .card-head { padding: 12px 0 0; }
+  .card-body { padding: 8px 0 14px; }
+  .headline .full-han { color: #000; }
+  .scores .score:first-child { background: #FFFFFF; border-color: #8A2F26; }
+  .scores .score:first-child b, .scores .score:first-child span { color: #8A2F26; }
+  .element-bar > div { color: #FFFFFF; }
+  .suri-item, .check, .advice-item, .wish-row, .rank-row { break-inside: avoid; page-break-inside: avoid; }
+  .checks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  a { color: #000; text-decoration: none; }
+  .footnote { border: 1px solid #B9B9B9; background: #FFFFFF; font-size: 9pt; }
+  .print-foot {
+    display: block !important; margin-top: 10px; padding-top: 8px; border-top: 1px solid #000;
+    font-size: 9pt; color: #4A4A4A;
+  }
+  .print-foot b { display: block; font-family: var(--display); font-size: 13pt; color: #000; margin-bottom: 2px; }
+  .print-foot span { display: block; }
+}

@@ -1578,6 +1578,19 @@
     this.textContent = next === "dark" ? "주간" : "야간";
     try { localStorage.setItem("naming-theme", next); } catch (err) { /* 저장 불가 환경 */ }
   });
+  $("pdfBtn").addEventListener("click", function () {
+    var res = evaluate(), p = res.saju.pillars;
+    var name = res.hasHanja
+      ? res.korName + " " + state.surHanja.char + state.chars.map(function (c) { return c.char; }).join("")
+      : (res.hasName ? res.korName : "이름 미정");
+    $("printName").textContent = name;
+    $("printMeta").textContent = state.date + " " + state.time + " · "
+      + p.year.kor + "년 " + p.month.kor + "월 " + p.day.kor + "일 " + p.hour.kor + "시";
+    $("printFoot") && ($("printFoot").hidden = false);
+    document.querySelector(".print-foot").hidden = false;
+    window.print();
+  });
+
   $("copyBtn").addEventListener("click", function () {
     var res = evaluate(), p = res.saju.pillars;
     var lines = [
@@ -1609,13 +1622,14 @@
   });
 
   /* ---------------------------------------------------------------- 시작 */
+  // 기본은 야간입니다. 고른 적이 있으면 그 선택을 따릅니다.
+  var startTheme = "dark";
   try {
     var saved = localStorage.getItem("naming-theme");
-    if (saved) {
-      document.documentElement.setAttribute("data-theme", saved);
-      $("themeBtn").textContent = saved === "dark" ? "주간" : "야간";
-    }
+    if (saved === "light" || saved === "dark") startTheme = saved;
   } catch (err) { /* 저장 불가 환경 */ }
+  document.documentElement.setAttribute("data-theme", startTheme);
+  $("themeBtn").textContent = startTheme === "dark" ? "주간" : "야간";
 
   $("wishGrid").innerHTML = WISHES.map(function (w) {
     return '<label class="wish-chip"><input type="checkbox" value="' + w.key + '"> ' + w.label + "</label>";
