@@ -1680,16 +1680,130 @@
     sheetOpen = true;
     document.body.classList.add("sheet-view");
     $("sheetBar").hidden = false;
-    window.scrollTo(0, 0);
+    $("sheetBarMsg").textContent = "작명 기록 한 장입니다. 저장하거나 바로 보낼 수 있어요.";
+    if (window.scrollTo) { try { window.scrollTo(0, 0); } catch (err) { /* 무시 */ } }
+  });
+
+  // 필요할 때만 라이브러리를 불러옵니다.
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var tag = document.querySelector('script[src="' + src + '"]');
+      if (tag) { tag.dataset.done === "1" ? resolve() : tag.addEventListener("load", function () { resolve(); }); return; }
+      var el2 = document.createElement("script");
+      el2.src = src;
+      el2.addEventListener("load", function () { el2.dataset.done = "1"; resolve(); });
+      el2.addEventListener("error", function () { reject(new Error("load")); });
+      document.head.appendChild(el2);
+    });
+  }
+
+  function sheetFileName(ext) {
+    var res = lastResult || evaluate();
+    var name = res.hasName ? res.korName : "작명";
+    return name + "_작명기록." + ext;
+  }
+
+  function setBarMsg(text) { $("sheetBarMsg").textContent = text; }
+
+  // 기록지를 그림으로 뜹니다.
+  function captureSheet() {
+    setBarMsg("기록을 그리는 중입니다…");
+    return loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js")
+      .then(function () {
+        return window.html2canvas($("printSheet"), {
+          backgroundColor: "#FFFFFF",
+          scale: Math.min(2, window.devicePixelRatio || 1) * 1.5,
+          useCORS: true,
+          windowWidth: Math.max(780, $("printSheet").scrollWidth)
+        });
+      });
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise(function (resolve) {
+      if (canvas.toBlob) canvas.toBlob(resolve, "image/png", 0.95);
+      else resolve(null);
+    });
+  }
+
+  function saveBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+  }
+
+  $("sheetImage").addEventListener("click", function () {
+    captureSheet().then(canvasToBlob).then(function (blob) {
+      if (!blob) throw new Error("blob");
+      saveBlob(blob, sheetFileName("png"));
+      setBarMsg("이미지를 저장했습니다. 사진첩이나 다운로드 폴더를 확인하세요.");
+    }).catch(function () {
+      setBarMsg("이미지를 만들지 못했습니다. 화면을 캡처해 주세요.");
+    });
+  });
+
+  $("sheetPdf").addEventListener("click", function () {
+    setBarMsg("PDF를 만드는 중입니다…");
+    captureSheet().then(function (canvas) {
+      return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js")
+        .then(function () {
+          var JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+          var pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+          var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+          var margin = 10;
+          var w = pw - margin * 2;
+          var h = canvas.height * w / canvas.width;
+          var img = canvas.toDataURL("image/jpeg", 0.92);
+          if (h <= ph - margin * 2) {
+            pdf.addImage(img, "JPEG", margin, margin, w, h);
+          } else {                                   // 길면 여러 쪽으로 나눕니다
+            var left = h, y = margin;
+            while (left > 0) {
+              pdf.addImage(img, "JPEG", margin, y, w, h);
+              left -= (ph - margin * 2);
+              if (left > 0) { pdf.addPage(); y -= (ph - margin * 2); }
+            }
+          }
+          pdf.save(sheetFileName("pdf"));
+          setBarMsg("PDF를 저장했습니다. 다운로드 폴더나 파일 앱에서 확인하세요.");
+        });
+    }).catch(function () {
+      setBarMsg("PDF를 만들지 못했습니다. 이미지 저장을 이용해 주세요.");
+    });
+  });
+
+  $("sheetShare").addEventListener("click", function () {
+    var res = lastResult || evaluate();
+    var title = (res.hasName ? res.korName : "작명 기록") + " · 사주 작명 노트";
+    setBarMsg("공유할 그림을 준비하는 중입니다…");
+    captureSheet().then(canvasToBlob).then(function (blob) {
+      var file = blob ? new File([blob], sheetFileName("png"), { type: "image/png" }) : null;
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: title, text: title });
+      }
+      return navigator.share({ title: title, text: title, url: location.href });
+    }).then(function () {
+      setBarMsg("공유했습니다.");
+    }).catch(function (err) {
+      if (err && err.name === "AbortError") { setBarMsg("작명 기록 한 장입니다. 저장하거나 바로 보낼 수 있어요."); return; }
+      setBarMsg("공유가 되지 않는 브라우저입니다. 이미지로 저장해서 보내 주세요.");
+    });
   });
 
   $("sheetPrint").addEventListener("click", function () {
-    try { window.print(); } catch (err) { toast("브라우저 메뉴에서 인쇄를 선택하세요"); }
+    try { window.print(); } catch (err) { setBarMsg("이 브라우저에는 인쇄가 없습니다. PDF 저장을 눌러 주세요."); }
   });
   $("sheetClose").addEventListener("click", closeSheet);
   window.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && sheetOpen) closeSheet();
   });
+
+  // 공유 기능이 있는 기기에서만 공유 버튼을 보입니다.
+  if (navigator.share) $("sheetShare").hidden = false;
 
   $("copyBtn").addEventListener("click", function () {
     var res = evaluate(), p = res.saju.pillars;

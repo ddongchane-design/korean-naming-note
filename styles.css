@@ -391,7 +391,13 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   background: var(--ink); color: var(--bg); font-size: 12.5px;
 }
 #sheetBar b { color: #F0B8A8; }
-#sheetBar span { flex-grow: 1; min-width: 180px; line-height: 1.6; }
+#sheetBar span { flex-grow: 1; min-width: 160px; line-height: 1.6; }
+#sheetBar .btn { flex: none; }
+@media (max-width: 560px) {
+  #sheetBar { gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  #sheetBar span { width: 100%; flex-basis: 100%; font-size: 12px; }
+  #sheetBar .btn { flex: 1 1 0; min-width: 0; padding: 10px 6px; font-size: 12.5px; }
+}
 #sheetBar .btn { background: transparent; color: var(--bg); border-color: var(--bg); }
 
 body.sheet-view > .wrap { display: none; }
