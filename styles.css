@@ -64,6 +64,9 @@
 }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+html, body { max-width: 100%; overflow-x: hidden; }
+img, svg, table { max-width: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: var(--body); font-size: 15px; line-height: 1.7;
@@ -145,7 +148,8 @@ input:focus-visible, select:focus-visible, button:focus-visible, [tabindex]:focu
   display: grid; place-items: center; padding: 0; font-family: var(--body); font-weight: 700;
 }
 .tip > .tip-body {
-  position: absolute; z-index: 20; left: 0; top: calc(100% + 7px); width: min(300px, 76vw);
+  position: absolute; z-index: 20; left: 0; top: calc(100% + 7px);
+  width: min(300px, calc(100vw - 48px)); max-width: calc(100vw - 48px);
   background: var(--ink); color: var(--bg); font-size: 12px; line-height: 1.7; font-weight: 400;
   padding: 12px 14px; border-radius: var(--r);
   opacity: 0; visibility: hidden; transition: opacity .12s ease;
@@ -352,4 +356,28 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: no-preference) {
   .element-bar > div { transition: flex-basis .35s ease; }
+}
+
+
+/* 폭이 좁은 화면에서 요소가 화면 밖으로 밀려나지 않게 */
+.wrap, .cols, .rail, .panel, .results, .card, .card-body, .check, .suri-main,
+.rank-top, .rank-list, .reading-part, .wish-row, .headline > div { min-width: 0; }
+
+@media (max-width: 480px) {
+  .wrap { padding-inline: 14px; }
+  .masthead { padding-block: 20px 14px; gap: 10px 14px; }
+  .masthead h1 { font-size: 21px; }
+  .masthead p { font-size: 12.5px; }
+  .masthead .right { margin-left: 0; width: 100%; }
+  .masthead .right .btn { flex: 1; }
+  .card-head { padding: 16px 16px 0; }
+  .card-body { padding: 14px 16px 20px; }
+  .panel { padding: 16px; }
+  .headline { gap: 12px; }
+  .headline .full-han { font-size: 36px; }
+  .scores { margin-left: 0; }
+  .filters label.field { width: calc(50% - 6px); }
+  .filters .btn { flex: 1; }
+  .pillars .gan { font-size: 22px; }
+  .rank-lists { gap: 20px; }
 }

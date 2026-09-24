@@ -370,19 +370,36 @@
     }
     return null;
   }
+  // 성은 획수 순으로 고를 수 없어, 흔히 쓰는 성씨 한자를 미리 골라 둡니다.
+  var SURNAME_HANJA = {
+    김: "金", 이: "李", 박: "朴", 최: "崔", 정: "鄭", 강: "姜", 조: "趙", 윤: "尹", 장: "張", 임: "林",
+    한: "韓", 오: "吳", 서: "徐", 신: "申", 권: "權", 황: "黃", 안: "安", 송: "宋", 전: "全", 홍: "洪",
+    유: "柳", 고: "高", 문: "文", 양: "梁", 손: "孫", 배: "裵", 백: "白", 허: "許", 남: "南", 심: "沈",
+    노: "盧", 하: "河", 곽: "郭", 성: "成", 차: "車", 주: "朱", 우: "禹", 구: "具", 나: "羅", 민: "閔",
+    진: "陳", 지: "池", 엄: "嚴", 채: "蔡", 원: "元", 천: "千", 방: "方", 공: "孔", 현: "玄", 함: "咸",
+    변: "卞", 염: "廉", 여: "呂", 추: "秋", 도: "都", 소: "蘇", 석: "石", 선: "宣", 설: "薛", 마: "馬",
+    길: "吉", 연: "延", 위: "魏", 표: "表", 명: "明", 기: "奇", 반: "潘", 왕: "王", 금: "琴", 옥: "玉",
+    육: "陸", 인: "印", 맹: "孟", 제: "諸", 모: "牟", 봉: "奉", 국: "鞠", 피: "皮", 계: "桂", 사: "史"
+  };
+
   function fillSelect(sel, kor, prefer) {
     var arr = listFor(kor);
     sel.innerHTML = "";
+    var none = document.createElement("option");
+    none.value = ""; none.textContent = arr.length ? "한자 없음 (한글 이름)" : "이 음절의 인명용 한자가 없습니다";
+    sel.appendChild(none);
     arr.forEach(function (e) {
       var o = document.createElement("option");
       o.value = e[0];
       o.textContent = e[0] + " " + (e[1] || "뜻 정보 없음") + " · " + e[2] + "획 · " + e[4];
       sel.appendChild(o);
     });
-    var none = document.createElement("option");
-    none.value = ""; none.textContent = arr.length ? "한자 없음 (한글 이름)" : "이 음절의 인명용 한자가 없습니다";
-    sel.appendChild(none);
     if (prefer && arr.some(function (e) { return e[0] === prefer; })) sel.value = prefer;
+    else if (sel.id === "surHan" && SURNAME_HANJA[kor] && arr.some(function (e) { return e[0] === SURNAME_HANJA[kor]; })) {
+      sel.value = SURNAME_HANJA[kor];   // 성은 대표 한자로 시작합니다
+    } else {
+      sel.value = "";                   // 이름 글자는 아래에서 가장 잘 맞는 것으로 고릅니다
+    }
   }
 
   function el(tag, cls, html) {
@@ -471,6 +488,9 @@
       return a.c.strokes - b.c.strokes;
     });
     sel.innerHTML = "";
+    var none = document.createElement("option");
+    none.value = ""; none.textContent = "한자 없음 (한글 이름)";
+    sel.appendChild(none);
     rows.forEach(function (r) {
       var o = document.createElement("option");
       o.value = r.c.char;
@@ -479,10 +499,12 @@
       o.title = r.m.why;
       sel.appendChild(o);
     });
-    var none = document.createElement("option");
-    none.value = ""; none.textContent = "한자 없음 (한글 이름)";
-    sel.appendChild(none);
-    sel.value = rows.some(function (r) { return r.c.char === keep; }) ? keep : "";
+    // 고르지 않았다면 가장 잘 맞는 글자를 먼저 보여줍니다. 목록도 그 글자에서 열립니다.
+    if (rows.some(function (r) { return r.c.char === keep; })) {
+      sel.value = keep;
+    } else {
+      sel.value = "";
+    }
     var best = rows.filter(function (r) { return r.m.rank === 0; }).length;
     var good = rows.filter(function (r) { return r.m.rank === 1; }).length;
     var note = $(isFirst ? "n1Note" : "n2Note");
@@ -1508,6 +1530,10 @@
     setTimeout(function () { t.remove(); }, 1900);
   }
 
+  ["n1Han", "n2Han", "surHan"].forEach(function (id) {
+    $(id).addEventListener("change", function () { this.dataset.touched = "1"; });
+  });
+
   ["birthDate", "birthTime", "fam1", "fam2", "fam3", "soundSchool", "suriScope", "timeBase", "region", "customLon", "surHan", "n1Han", "n2Han", "popYear"]
     .forEach(function (id) {
       $(id).addEventListener("change", update);
@@ -1516,6 +1542,7 @@
   ["surKor", "n1Kor", "n2Kor"].forEach(function (id) {
     $(id).addEventListener("input", function () {
       var target = { surKor: "surHan", n1Kor: "n1Han", n2Kor: "n2Han" }[id];
+      $(target).dataset.touched = "";
       fillSelect($(target), ($(id).value || "").slice(0, 1), null);
       update();
     });
