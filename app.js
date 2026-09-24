@@ -875,6 +875,8 @@
       lw.appendChild(item);
     });
 
+    renderReading(res);
+    renderWish(res);
     renderAdvice(s, res.need);
     renderChecks(res);
     renderSuri(res);
