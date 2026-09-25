@@ -1667,32 +1667,59 @@
     ct.appendChild(tr);
   }
 
+  // 기기 판별: 모바일에서는 다운로드 대신 공유 시트나 길게 눌러 저장을 씁니다.
+  var UA = navigator.userAgent || "";
+  var IS_IOS = /iP(hone|od|ad)/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+  var IS_ANDROID = /Android/i.test(UA);
+  var IS_MOBILE = IS_IOS || IS_ANDROID;
+  // 카카오톡·네이버·인스타그램 같은 앱 안의 브라우저는 파일 다운로드를 막습니다.
+  var IN_APP = /KAKAOTALK|NAVER\(inapp|DaumApps|Instagram|FBAN|FBAV|FB_IAB|Line\/|everytimeApp|; wv\)/i.test(UA);
+
   var sheetOpen = false;
+  var sheetJob = null;      // 준비 중인 작업 (Promise)
+  var sheetReady = null;    // 준비가 끝난 결과 { png, pdf, dataUrl }
+  var SHEET_BTNS = ["sheetPdf", "sheetImage", "sheetShare"];
+  var SHEET_IDLE_MSG = "작명 기록 한 장입니다. 저장하거나 바로 보낼 수 있어요.";
+
+  function setBarMsg(text) { $("sheetBarMsg").textContent = text; }
+  function setSheetBusy(busy) {
+    SHEET_BTNS.forEach(function (id) { $(id).disabled = busy; });
+  }
+
   function closeSheet() {
     sheetOpen = false;
+    sheetJob = null;
+    sheetReady = null;
     document.body.classList.remove("sheet-view");
     $("sheetBar").hidden = true;
+    closePreview();
   }
 
   $("pdfBtn").addEventListener("click", function () {
     try { fillPrintSheet(); } catch (err) { toast("기록을 만들지 못했습니다"); return; }
     // 앱 안의 브라우저처럼 인쇄창이 열리지 않는 곳도 있어, 기록지를 화면에 먼저 띄웁니다.
     sheetOpen = true;
+    sheetJob = null;
+    sheetReady = null;
     document.body.classList.add("sheet-view");
     $("sheetBar").hidden = false;
-    $("sheetBarMsg").textContent = "작명 기록 한 장입니다. 저장하거나 바로 보낼 수 있어요.";
     if (window.scrollTo) { try { window.scrollTo(0, 0); } catch (err) { /* 무시 */ } }
+    prepareSheet();
   });
 
   // 필요할 때만 라이브러리를 불러옵니다.
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
       var tag = document.querySelector('script[src="' + src + '"]');
-      if (tag) { tag.dataset.done === "1" ? resolve() : tag.addEventListener("load", function () { resolve(); }); return; }
+      if (tag) {
+        if (tag.dataset.done === "1") resolve();
+        else { tag.addEventListener("load", function () { resolve(); }); tag.addEventListener("error", function () { reject(new Error("load")); }); }
+        return;
+      }
       var el2 = document.createElement("script");
       el2.src = src;
       el2.addEventListener("load", function () { el2.dataset.done = "1"; resolve(); });
-      el2.addEventListener("error", function () { reject(new Error("load")); });
+      el2.addEventListener("error", function () { el2.remove(); reject(new Error("load")); });
       document.head.appendChild(el2);
     });
   }
@@ -1703,93 +1730,227 @@
     return name + "_작명기록." + ext;
   }
 
-  function setBarMsg(text) { $("sheetBarMsg").textContent = text; }
-
-  // 기록지를 그림으로 뜹니다.
+  // 기록지를 그림으로 뜹니다. 화면 폭과 상관없이 같은 모양이 나오도록 폭을 고정합니다.
+  var SHEET_W = 720;
   function captureSheet() {
-    setBarMsg("기록을 그리는 중입니다…");
-    return loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js")
-      .then(function () {
-        return window.html2canvas($("printSheet"), {
-          backgroundColor: "#FFFFFF",
-          scale: Math.min(2, window.devicePixelRatio || 1) * 1.5,
-          useCORS: true,
-          windowWidth: Math.max(780, $("printSheet").scrollWidth)
-        });
+    var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    return Promise.all([
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+      fontsReady
+    ]).then(function () {
+      var sheet = $("printSheet");
+      // 모바일 캔버스 한도(iOS 약 1,670만 화소)를 넘지 않게 배율을 줄입니다.
+      var estH = Math.max(sheet.scrollHeight, 1200) * (SHEET_W / Math.max(sheet.scrollWidth, 1));
+      var scale = 2;
+      while (scale > 1 && SHEET_W * scale * estH * scale > 12e6) scale -= 0.25;
+      return window.html2canvas(sheet, {
+        backgroundColor: "#FFFFFF",
+        scale: scale,
+        useCORS: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: SHEET_W + 60,
+        onclone: function (doc) {
+          var s = doc.getElementById("printSheet");
+          s.style.width = SHEET_W + "px";
+          s.style.maxWidth = "none";
+          s.style.margin = "0";
+          s.style.paddingBottom = "28px";
+        }
       });
+    });
   }
 
-  function canvasToBlob(canvas) {
+  function canvasToBlob(canvas, type, quality) {
     return new Promise(function (resolve) {
-      if (canvas.toBlob) canvas.toBlob(resolve, "image/png", 0.95);
+      if (canvas.toBlob) canvas.toBlob(resolve, type || "image/png", quality);
       else resolve(null);
     });
   }
 
-  function saveBlob(blob, filename) {
+  function buildPdf(canvas) {
+    return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js").then(function () {
+      var JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+      var pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+      var margin = 10;
+      var w = pw - margin * 2;
+      var h = canvas.height * w / canvas.width;
+      var img = canvas.toDataURL("image/jpeg", 0.92);
+      if (h <= ph - margin * 2) {
+        pdf.addImage(img, "JPEG", margin, margin, w, h);
+      } else {                                   // 길면 여러 쪽으로 나눕니다
+        var left = h, y = margin;
+        while (left > 0) {
+          pdf.addImage(img, "JPEG", margin, y, w, h);
+          left -= (ph - margin * 2);
+          if (left > 0) { pdf.addPage(); y -= (ph - margin * 2); }
+        }
+      }
+      return pdf.output("blob");
+    });
+  }
+
+  // 기록지를 열자마자 그림과 PDF를 미리 만들어 둡니다.
+  // 모바일의 공유 기능은 버튼을 누른 직후에만 허용되므로, 누른 뒤에 만들기 시작하면 막힙니다.
+  function prepareSheet() {
+    if (sheetJob) return sheetJob;
+    setSheetBusy(true);
+    setBarMsg("기록을 그리는 중입니다…");
+    var job = sheetJob = captureSheet().then(function (canvas) {
+      return canvasToBlob(canvas, "image/png").then(function (png) {
+        if (!png) throw new Error("blob");
+        var ready = { png: png, pdf: null, dataUrl: canvas.toDataURL("image/png") };
+        return buildPdf(canvas).then(function (pdf) { ready.pdf = pdf; return ready; }, function () { return ready; });
+      });
+    }).then(function (ready) {
+      if (sheetJob !== job) return ready;     // 그 사이 닫았거나 다시 열었음
+      sheetReady = ready;
+      setSheetBusy(false);
+      setBarMsg(IN_APP
+        ? "준비됐어요. 앱 안의 브라우저라 저장이 막히면 아래 안내대로 기본 브라우저에서 열어 주세요."
+        : SHEET_IDLE_MSG);
+      return ready;
+    }, function (err) {
+      if (sheetJob !== job) throw err;
+      sheetJob = null;
+      setSheetBusy(false);
+      setBarMsg("기록을 그리지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.");
+      throw err;
+    });
+    job.catch(function () { /* 메시지는 위에서 띄웠습니다 */ });
+    return job;
+  }
+
+  // 준비가 안 됐으면 기다리라고 알리고 false를 돌려줍니다.
+  function needReady() {
+    if (sheetReady) return true;
+    prepareSheet();
+    setBarMsg("아직 기록을 그리는 중입니다. 잠시 후 다시 눌러 주세요.");
+    return false;
+  }
+
+  function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    a.rel = "noopener";
     document.body.appendChild(a);
     a.click();
-    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 60000);
+  }
+
+  function makeFile(blob, name, type) {
+    try { return new File([blob], name, { type: type }); } catch (err) { return null; }
+  }
+  function canShareFile(file) {
+    try { return !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); }
+    catch (err) { return false; }
+  }
+  function shareFile(file, doneMsg) {
+    return navigator.share({ files: [file], title: file.name }).then(function () {
+      setBarMsg(doneMsg);
+    }, function (err) {
+      if (err && err.name === "AbortError") { setBarMsg(SHEET_IDLE_MSG); return; }
+      throw err;
+    });
+  }
+
+  // 앱 안의 브라우저에서 기본 브라우저로 여는 주소
+  function externalOpenUrl() {
+    var here = location.href;
+    if (/KAKAOTALK/i.test(UA)) return "kakaotalk://web/openExternal?url=" + encodeURIComponent(here);
+    if (IS_ANDROID) {
+      return "intent://" + here.replace(/^https?:\/\//, "") + "#Intent;scheme=" + location.protocol.replace(":", "")
+        + ";package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(here) + ";end";
+    }
+    return "";
+  }
+
+  // 그림을 화면에 크게 띄워 길게 눌러 저장하게 합니다. 다운로드가 막힌 곳의 마지막 방법입니다.
+  function showPreview(dataUrl, note) {
+    closePreview();
+    var box = document.createElement("div");
+    box.id = "sheetPreview";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-label", "작명 기록 이미지");
+    var ext = IN_APP ? externalOpenUrl() : "";
+    box.innerHTML = '<div class="pv-head"><p>' + note + "</p>"
+      + (ext ? '<a class="btn" href="' + ext + '">기본 브라우저에서 열기</a>' : "")
+      + '<button class="btn" type="button" id="pvClose">닫기</button></div>'
+      + '<img alt="작명 기록" src="' + dataUrl + '">';
+    document.body.appendChild(box);
+    $("pvClose").addEventListener("click", closePreview);
+  }
+  function closePreview() {
+    var box = document.getElementById("sheetPreview");
+    if (box) box.remove();
   }
 
   $("sheetImage").addEventListener("click", function () {
-    captureSheet().then(canvasToBlob).then(function (blob) {
-      if (!blob) throw new Error("blob");
-      saveBlob(blob, sheetFileName("png"));
-      setBarMsg("이미지를 저장했습니다. 사진첩이나 다운로드 폴더를 확인하세요.");
-    }).catch(function () {
-      setBarMsg("이미지를 만들지 못했습니다. 화면을 캡처해 주세요.");
-    });
+    if (!needReady()) return;
+    var name = sheetFileName("png");
+    var file = makeFile(sheetReady.png, name, "image/png");
+    // 아이폰: 공유 시트의 '이미지 저장'이 사진첩으로 바로 들어갑니다.
+    if (IS_IOS && !IN_APP && canShareFile(file)) {
+      shareFile(file, "저장했습니다. 사진첩을 확인하세요.").catch(function () {
+        showPreview(sheetReady.dataUrl, "이미지를 길게 눌러 '사진에 저장'을 고르세요.");
+      });
+      return;
+    }
+    if (IN_APP || (IS_IOS && !canShareFile(file))) {
+      showPreview(sheetReady.dataUrl, "이미지를 길게 눌러 저장하세요.");
+      setBarMsg("이미지를 길게 눌러 저장하세요.");
+      return;
+    }
+    downloadBlob(sheetReady.png, name);
+    setBarMsg(IS_MOBILE ? "이미지를 저장했습니다. 갤러리나 다운로드 폴더를 확인하세요." : "이미지를 저장했습니다. 다운로드 폴더를 확인하세요.");
   });
 
   $("sheetPdf").addEventListener("click", function () {
-    setBarMsg("PDF를 만드는 중입니다…");
-    captureSheet().then(function (canvas) {
-      return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js")
-        .then(function () {
-          var JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-          var pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-          var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
-          var margin = 10;
-          var w = pw - margin * 2;
-          var h = canvas.height * w / canvas.width;
-          var img = canvas.toDataURL("image/jpeg", 0.92);
-          if (h <= ph - margin * 2) {
-            pdf.addImage(img, "JPEG", margin, margin, w, h);
-          } else {                                   // 길면 여러 쪽으로 나눕니다
-            var left = h, y = margin;
-            while (left > 0) {
-              pdf.addImage(img, "JPEG", margin, y, w, h);
-              left -= (ph - margin * 2);
-              if (left > 0) { pdf.addPage(); y -= (ph - margin * 2); }
-            }
-          }
-          pdf.save(sheetFileName("pdf"));
-          setBarMsg("PDF를 저장했습니다. 다운로드 폴더나 파일 앱에서 확인하세요.");
-        });
-    }).catch(function () {
+    if (!needReady()) return;
+    if (!sheetReady.pdf) {
       setBarMsg("PDF를 만들지 못했습니다. 이미지 저장을 이용해 주세요.");
-    });
+      return;
+    }
+    var name = sheetFileName("pdf");
+    var file = makeFile(sheetReady.pdf, name, "application/pdf");
+    // 모바일: 공유 시트에서 '파일에 저장'이나 카카오톡 전송을 고를 수 있습니다.
+    if (IS_MOBILE && canShareFile(file)) {
+      shareFile(file, "PDF를 보냈습니다.").catch(function () {
+        if (IN_APP) { showPreview(sheetReady.dataUrl, "이 앱 안에서는 PDF를 저장할 수 없습니다. 기본 브라우저에서 열거나, 이미지를 길게 눌러 저장하세요."); return; }
+        downloadBlob(sheetReady.pdf, name);
+        setBarMsg("PDF를 저장했습니다. 파일 앱이나 다운로드 폴더를 확인하세요.");
+      });
+      return;
+    }
+    if (IN_APP) {
+      showPreview(sheetReady.dataUrl, "이 앱 안에서는 PDF를 저장할 수 없습니다. 기본 브라우저에서 열거나, 이미지를 길게 눌러 저장하세요.");
+      setBarMsg("앱 안의 브라우저에서는 PDF 저장이 막혀 있습니다.");
+      return;
+    }
+    downloadBlob(sheetReady.pdf, name);
+    setBarMsg("PDF를 저장했습니다. 다운로드 폴더나 파일 앱에서 확인하세요.");
   });
 
   $("sheetShare").addEventListener("click", function () {
     var res = lastResult || evaluate();
     var title = (res.hasName ? res.korName : "작명 기록") + " · 사주 작명 노트";
-    setBarMsg("공유할 그림을 준비하는 중입니다…");
-    captureSheet().then(canvasToBlob).then(function (blob) {
-      var file = blob ? new File([blob], sheetFileName("png"), { type: "image/png" }) : null;
-      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-        return navigator.share({ files: [file], title: title, text: title });
-      }
-      return navigator.share({ title: title, text: title, url: location.href });
-    }).then(function () {
+    // 그림이 준비됐으면 그림을, 아니면 주소를 바로 공유합니다. 여기서 기다리면 공유가 막힙니다.
+    var file = sheetReady ? makeFile(sheetReady.png, sheetFileName("png"), "image/png") : null;
+    var job;
+    if (canShareFile(file)) {
+      // 제목·문구를 함께 넣으면 그림을 버리는 앱(카카오톡 등)이 있어 파일만 보냅니다.
+      job = navigator.share({ files: [file] });
+    } else {
+      job = navigator.share({ title: title, text: title, url: location.href });
+    }
+    job.then(function () {
       setBarMsg("공유했습니다.");
     }).catch(function (err) {
-      if (err && err.name === "AbortError") { setBarMsg("작명 기록 한 장입니다. 저장하거나 바로 보낼 수 있어요."); return; }
+      if (err && err.name === "AbortError") { setBarMsg(SHEET_IDLE_MSG); return; }
       setBarMsg("공유가 되지 않는 브라우저입니다. 이미지로 저장해서 보내 주세요.");
     });
   });
@@ -1799,11 +1960,15 @@
   });
   $("sheetClose").addEventListener("click", closeSheet);
   window.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && sheetOpen) closeSheet();
+    if (e.key !== "Escape") return;
+    if (document.getElementById("sheetPreview")) closePreview();
+    else if (sheetOpen) closeSheet();
   });
 
   // 공유 기능이 있는 기기에서만 공유 버튼을 보입니다.
   if (navigator.share) $("sheetShare").hidden = false;
+  // 휴대폰에는 인쇄가 거의 없어 버튼을 숨깁니다.
+  if (IS_MOBILE) $("sheetPrint").hidden = true;
 
   $("copyBtn").addEventListener("click", function () {
     var res = evaluate(), p = res.saju.pillars;
