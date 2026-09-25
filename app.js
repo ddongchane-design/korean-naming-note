@@ -1859,8 +1859,56 @@
   }
 
   // 앱 안의 브라우저에서 기본 브라우저로 여는 주소
+  // 입력한 값을 주소 뒤(#)에 담습니다. 다른 브라우저로 넘어가도 이어서 볼 수 있게 합니다.
+  var FORM_IDS = ["birthDate", "birthTime", "surKor", "n1Kor", "n2Kor", "fam1", "fam2", "fam3",
+    "soundSchool", "suriScope", "timeBase", "region", "customLon", "popYear"];
+  function stateUrl(openSheet) {
+    var s = { v: {}, h: {}, g: state.gender, l: state.len, w: [], o: {} };
+    FORM_IDS.forEach(function (id) { s.v[id] = $(id).value; });
+    ["surHan", "n1Han", "n2Han"].forEach(function (id) { s.h[id] = $(id).value; });
+    Array.prototype.forEach.call(document.querySelectorAll("#wishGrid input:checked"), function (b) { s.w.push(b.value); });
+    Array.prototype.forEach.call(document.querySelectorAll("#searchOpts input"), function (b) { s.o[b.id] = b.checked; });
+    if (openSheet) s.sheet = 1;
+    return location.href.split("#")[0] + "#s=" + encodeURIComponent(JSON.stringify(s));
+  }
+
+  // 주소에 담긴 값을 화면에 되돌립니다. 사람이 직접 입력한 것처럼 이벤트를 흘려 기존 흐름을 그대로 탑니다.
+  function restoreFromUrl() {
+    var m = /#s=(.+)$/.exec(location.hash);
+    if (!m) return;
+    var s;
+    try { s = JSON.parse(decodeURIComponent(m[1])); } catch (err) { return; }
+    function fire(node, type) { node.dispatchEvent(new Event(type, { bubbles: true })); }
+    var segG = document.querySelector('#genderSeg button[data-v="' + s.g + '"]');
+    if (segG) segG.click();
+    var segL = document.querySelector('#lenSeg button[data-v="' + s.l + '"]');
+    if (segL) segL.click();
+    FORM_IDS.forEach(function (id) {
+      if (!s.v || s.v[id] === undefined) return;
+      $(id).value = s.v[id];
+      fire($(id), "input"); fire($(id), "change");
+    });
+    Object.keys(s.h || {}).forEach(function (id) {
+      if (!s.h[id]) return;
+      var sel = $(id);
+      if (!Array.prototype.some.call(sel.options, function (o) { return o.value === s.h[id]; })) return;
+      sel.value = s.h[id];
+      fire(sel, "change");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#wishGrid input"), function (b) {
+      var on = (s.w || []).indexOf(b.value) >= 0;
+      if (b.checked !== on) { b.checked = on; fire(b, "change"); }
+    });
+    Object.keys(s.o || {}).forEach(function (id) {
+      var b = $(id);
+      if (b && b.checked !== s.o[id]) { b.checked = s.o[id]; fire(b, "change"); }
+    });
+    try { history.replaceState(null, "", location.href.split("#")[0]); } catch (err) { /* 무시 */ }
+    if (s.sheet) $("pdfBtn").click();
+  }
+
   function externalOpenUrl() {
-    var here = location.href;
+    var here = stateUrl(true);
     if (/KAKAOTALK/i.test(UA)) return "kakaotalk://web/openExternal?url=" + encodeURIComponent(here);
     if (IS_ANDROID) {
       return "intent://" + here.replace(/^https?:\/\//, "") + "#Intent;scheme=" + location.protocol.replace(":", "")
@@ -1889,7 +1937,27 @@
     if (box) box.remove();
   }
 
+  // 카카오톡 같은 앱 안에서는 저장이 막혀 있어, 입력값을 들고 기본 브라우저로 넘어갑니다.
+  // 넘어가지 못하면(1.5초 뒤에도 화면이 그대로면) 길게 눌러 저장하는 화면을 띄웁니다.
+  function leaveInApp() {
+    var url = externalOpenUrl();
+    if (!url) return false;
+    var left = false;
+    function onHide() { if (document.hidden) left = true; }
+    document.addEventListener("visibilitychange", onHide);
+    setBarMsg("기본 브라우저로 여는 중입니다. 열리면 거기서 저장해 주세요.");
+    location.href = url;
+    setTimeout(function () {
+      document.removeEventListener("visibilitychange", onHide);
+      if (left) return;
+      if (sheetReady) showPreview(sheetReady.dataUrl, "기본 브라우저로 넘어가지 못했습니다. 이미지를 길게 눌러 저장하거나, 오른쪽 위 메뉴(⋮ 또는 공유)에서 '다른 브라우저로 열기'를 눌러 주세요.");
+      else setBarMsg("오른쪽 위 메뉴(⋮ 또는 공유)에서 '다른 브라우저로 열기'를 눌러 주세요.");
+    }, 1500);
+    return true;
+  }
+
   $("sheetImage").addEventListener("click", function () {
+    if (IN_APP && leaveInApp()) return;
     if (!needReady()) return;
     var name = sheetFileName("png");
     var file = makeFile(sheetReady.png, name, "image/png");
@@ -1910,6 +1978,7 @@
   });
 
   $("sheetPdf").addEventListener("click", function () {
+    if (IN_APP && leaveInApp()) return;
     if (!needReady()) return;
     if (!sheetReady.pdf) {
       setBarMsg("PDF를 만들지 못했습니다. 이미지 저장을 이용해 주세요.");
@@ -2036,4 +2105,5 @@
   fillSelect($("n2Han"), "", null);
   renderExplorer();
   update();
+  restoreFromUrl();
 })();
